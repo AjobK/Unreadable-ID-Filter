@@ -1,7 +1,7 @@
-# import the necessary packages
+# Built on top of Adrian Rosebrocks work from pyimagesearch.
+
 from imutils import paths
 import numpy as np
-# from pyimagesearch.blur_detector import detect_blur_fft
 import argparse
 import cv2
 import json

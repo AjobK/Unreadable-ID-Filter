@@ -1,4 +1,4 @@
-# Built on top of Adrian Rosebrocks work from pyimagesearch.
+# Built on top of Adrian Rosebrock work from pyimagesearch.
 
 from imutils import paths
 import numpy as np

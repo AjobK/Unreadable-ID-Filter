@@ -1,10 +1,12 @@
 # Built on top of Adrian Rosebrock work from pyimagesearch.
 
+from cv2 import threshold
 from imutils import paths
 import numpy as np
 import argparse
 import cv2
 import json
+import time
 
 path = "data/temp"
 
@@ -36,16 +38,34 @@ args = vars(ap.parse_args())
 
 results={
     "sharp": {
-        "correct": 0,
-        "incorrect": 0
+        "positive": 0,
+        "negative": 0,
+        "totalTimeMs": 0,
+        "avgTimeMs": 0
     },
-    "motblurred": {
-        "correct": 0,
-        "incorrect": 0
+    "motblurred-real": {
+        "positive": 0,
+        "negative": 0,
+        "totalTimeMs": 0,
+        "avgTimeMs": 0
     },
-    "defblurred": {
-        "correct": 0,
-        "incorrect": 0
+    "defblurred-real": {
+        "positive": 0,
+        "negative": 0,
+        "totalTimeMs": 0,
+        "avgTimeMs": 0
+    },
+    "motblurred-synth": {
+        "positive": 0,
+        "negative": 0,
+        "totalTimeMs": 0,
+        "avgTimeMs": 0
+    },
+    "defblurred-synth": {
+        "positive": 0,
+        "negative": 0,
+        "totalTimeMs": 0,
+        "avgTimeMs": 0
     }
 }
 
@@ -53,32 +73,49 @@ for imagePath in paths.list_images(args["images"]):
     image = cv2.imread(imagePath)
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     
+    startTime = time.time()
     # LoG
-    # fm = variance_of_laplacian(gray)
+    fm = variance_of_laplacian(gray)
     # FFT
-    (fm, res) = detect_blur_fft(gray)
+    # (fm, res) = detect_blur_fft(gray)
 
     isBlurry = False
 
     if fm < args["threshold"]:
         isBlurry = True
 
-    text = "Blurry" if isBlurry else "Not Blurry"
+    imageBlurType = imagePath.split("-")[1].split(" ")[0].split(".")[0].strip()
 
-    imageBlurType = imagePath.split("-")[1].split(" ")[0].strip()
-    if imageBlurType in ["motblurred", "defblurred"]:
+    if "blurred" in imageBlurType:
+        imageBlurType = "%s-%s" % (imageBlurType, "real" if "real" in imagePath else "synth")
+
         if isBlurry:
-            results[imageBlurType]["correct"] = results[imageBlurType]["correct"] + 1
+            results[imageBlurType]["positive"] = results[imageBlurType]["positive"] + 1
         else:
-            results[imageBlurType]["incorrect"] = results[imageBlurType]["incorrect"] + 1
+            results[imageBlurType]["negative"] = results[imageBlurType]["negative"] + 1
     else:
         if not isBlurry:
-            results["sharp"]["correct"] = results["sharp"]["correct"] + 1
+            results["sharp"]["positive"] = results["sharp"]["positive"] + 1
         else:
-            results["sharp"]["incorrect"] = results["sharp"]["incorrect"] + 1
+            results["sharp"]["negative"] = results["sharp"]["negative"] + 1
+    
+    deltaTime = (time.time() - startTime) * 1000
+    results[imageBlurType]["totalTimeMs"] = results[imageBlurType]["totalTimeMs"] + deltaTime
+    results[imageBlurType]["avgTimeMs"] = results[imageBlurType]["totalTimeMs"] / (
+        results[imageBlurType]["positive"] + results[imageBlurType]["negative"]
+    )
 
     # For debugging
-    print(imagePath, " - {}: {:.2f}".format(text, fm))
+    # print(imagePath, " - {}: {:.2f}".format("Blurry" if isBlurry else "Not Blurry", fm))
 
-print("\nTOTAL RESULT")
-print(json.dumps(results, sort_keys=False, indent=4))
+allpositive = results["sharp"]["positive"] + results["motblurred-real"]["positive"] + results["defblurred-real"]["positive"] + results["motblurred-synth"]["positive"] + results["defblurred-synth"]["positive"]
+allFalse = results["sharp"]["negative"] + results["motblurred-real"]["negative"] + results["defblurred-real"]["negative"] + results["motblurred-synth"]["negative"] + results["defblurred-synth"]["negative"]
+
+totalResults = {
+    "accuracy": allpositive / (allpositive + allFalse),
+    "recall": results["sharp"]["positive"] / (results["sharp"]["positive"] + results["sharp"]["negative"]),
+    "types": results
+}
+
+print("\nTOTAL RESULTS (Threshold = %s)" % args["threshold"])
+print(json.dumps(totalResults, sort_keys=False, indent=4))
